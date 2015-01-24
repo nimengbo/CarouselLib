@@ -24,8 +24,7 @@
         android:id="@+id/hList"
         android:layout_width="match_parent"
         android:layout_marginTop="20dp"
-        android:layout_height="wrap_content">
-        </com.zx.test.HorizontalListView>
+        android:layout_height="100dp"></com.zx.test.HorizontalListView>
 
     <TextView
         android:id="@+id/tv_autoscroll"
