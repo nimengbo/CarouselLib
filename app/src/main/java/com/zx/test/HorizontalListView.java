@@ -54,6 +54,8 @@ import android.widget.ListView;
 import android.widget.ScrollView;
 import android.widget.Scroller;
 
+import com.nineoldandroids.view.ViewHelper;
+
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -257,9 +259,10 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
     private OnClickListener mOnClickListener;
 
     //初始化item位置的一些变量
-    private int marginEdge = -1;
-    private int halfItemWidth = -1;
     private int itemWidth = -1;
+    private int centerX;
+    private int leftRightMargin = 0;
+
 
     private boolean isAutoScroll = false;
     private static final int DURATION = 1000;
@@ -284,10 +287,6 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
             }
         }
     };
-    /**
-     * 屏幕宽度的一半
-     */
-    private int halfScreenWidth;
 
     public HorizontalListView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -298,7 +297,6 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
         initView();
         retrieveXmlConfiguration(context, attrs);
         setWillNotDraw(false);
-
         // If the OS version is high enough then set the friction on the fling tracker */
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
             HoneycombPlus.setFriction(mFlingTracker, FLING_FRICTION);
@@ -437,7 +435,6 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
         mNextX = 0;
         mMaxX = Integer.MAX_VALUE;
         setCurrentScrollState(OnScrollStateChangedListener.ScrollState.SCROLL_STATE_IDLE);
-        halfScreenWidth = getResources().getDisplayMetrics().widthPixels >> 1;
         mFlingTracker.setmScrollLinstener(this);
     }
 
@@ -680,9 +677,14 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
         }
 
         // Calculate our delta from the last time the view was drawn
+        //dx为负时向左滑，当前要渲染的图的x坐标减去下一个要渲染图的y坐标
         int dx = mCurrentX - mNextX;
         removeNonVisibleChildren(dx);
         fillList(dx);
+        if (itemWidth < 0 && getChildAt(0) != null) {
+            itemWidth = getChildAt(0).getMeasuredWidth();
+            leftRightMargin = centerX - (itemWidth >> 1);
+        }
         positionChildren(dx);
 
         // Since the view has now been drawn, update our current position
@@ -705,6 +707,7 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
             // Still in a fling so schedule the next frame
             ViewCompat.postOnAnimation(this, mDelayedLayout);
         }
+        scaleChild();
     }
 
     @Override
@@ -770,6 +773,7 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
 
         // Cache off the measure spec
         mHeightMeasureSpec = heightMeasureSpec;
+        centerX = getMeasuredWidth() >> 1;
     }
 
     ;
@@ -791,7 +795,7 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
 
                 // Determine the maximum x position
                 // +marginEdge 表示最大mMaX也要变大
-                mMaxX = mCurrentX + (rightView.getRight() - getPaddingLeft()) - getRenderWidth() + marginEdge;
+                mMaxX = mCurrentX + (rightView.getRight() - getPaddingLeft()) - getRenderWidth() + leftRightMargin;
 
                 // Handle the case where the views do not fill at least 1 screen
                 if (mMaxX < 0) {
@@ -912,7 +916,7 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
         if (childCount > 0) {
             mDisplayOffset += dx;
             int leftOffset = mDisplayOffset;
-
+            leftOffset += leftRightMargin;
             // Loop each child view
             for (int i = 0; i < childCount; i++) {
                 View child = getChildAt(i);
@@ -920,17 +924,7 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
                 int top = getPaddingTop();
                 int right = left + child.getMeasuredWidth();
                 int bottom = top + child.getMeasuredHeight();
-
                 // Layout the child
-                if (i == 0) {
-                    if (marginEdge < 0) {
-//                        marginEdge = halfScreenWidth - (child.getMeasuredWidth() >> 1);
-                        marginEdge = 0;
-                    }
-
-                    left += marginEdge;
-//                    leftOffset += marginEdge;
-                }
                 child.layout(left, top, right, bottom);
                 // Increment our offset by added child's size and divider width
                 leftOffset += child.getMeasuredWidth() + mDividerWidth;
@@ -1497,6 +1491,27 @@ public class HorizontalListView extends AdapterView<ListAdapter> implements MySc
          */
         public static float getCurrVelocity(Scroller scroller) {
             return scroller.getCurrVelocity();
+        }
+    }
+
+    private static final float TO_SCALE = 1.2f;
+
+    /**
+     * item的缩放
+     */
+    private void scaleChild() {
+        int childCount = getChildCount();
+        for (int i = 0; i < childCount; i++) {
+            View view = getChildAt(i);
+            int[] location = new int[2];
+            view.getLocationOnScreen(location);
+            if ((centerX - (location[0] + (itemWidth >> 1)) < itemWidth + mDividerWidth)
+                    || (location[0] + (itemWidth >> 1) - centerX < itemWidth + mDividerWidth)) {
+                float scale = TO_SCALE - ((float) Math.abs(location[0] + (itemWidth >> 1) - centerX) / (itemWidth + mDividerWidth) / 10) * 2;
+                ViewHelper.setScaleX(view, scale);
+                ViewHelper.setScaleY(view, scale);
+
+            }
         }
     }
 
